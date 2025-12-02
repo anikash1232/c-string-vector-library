@@ -253,3 +253,14 @@ TEST(VecImpl, splice_out_of_bounds_delete) {
 
     Vec_drop(&v);
 }
+
+TEST(VecImpl, equals_empty_vectors) {
+    Vec a = Vec_value(5, sizeof(int));
+    Vec b = Vec_value(5, sizeof(int));
+
+    ASSERT_TRUE(Vec_equals(&a, &b));
+
+    Vec_drop(&a);
+    Vec_drop(&b);
+}
+
