@@ -72,21 +72,18 @@ void Vec_get(const Vec* self, size_t index, void* out) {
            self->item_size);
 }
 
-void Vec_set(Vec* self, size_t index, const void* value) {
+void Vec_set(Vec *self, size_t index, const void *value) {
     if (index > self->length) {
         fprintf(stderr, "%s:%d - Out of Bounds", __FILE__, __LINE__);
         exit(EXIT_FAILURE);
     }
 
-    if (index == self->length) {
-        Vec_ensure_capacity(self, self->length + 1);
-        self->length += 1;
-    }
+    size_t delete_count = (index < self->length) ? 1 : 0;
+    size_t insert_count = 1;
 
-    memcpy((char*)self->buffer + index * self->item_size,
-           value,
-           self->item_size);
+    Vec_splice(self, index, delete_count, value, insert_count);
 }
+
 
 bool Vec_equals(const Vec* self, const Vec* other) {
     if (self->item_size != other->item_size) {
