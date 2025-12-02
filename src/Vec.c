@@ -1,9 +1,37 @@
 #include "Vec.h"
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
 #include "Guards.h"
 
+
+static void Vec_ensure_capacity(Vec *self, size_t min_capacity) {
+    if (self->capacity >= min_capacity) {
+        return;
+    }
+
+    size_t new_capacity = self->capacity == 0 ? 1 : self->capacity;
+    while (new_capacity < min_capacity) {
+        new_capacity *= 2;
+    }
+
+    void *new_buffer = calloc(new_capacity, self->item_size);
+    OOM_GUARD(new_buffer, __FILE__, __LINE__);
+
+    if (self->buffer != NULL && self->length > 0) {
+        memcpy(new_buffer,
+               self->buffer,
+               self->length * self->item_size);
+    }
+
+    free(self->buffer);
+    self->buffer = new_buffer;
+    self->capacity = new_capacity;
+}
+
+/* Constructor / Destructor */
 
 Vec Vec_value(size_t capacity, size_t item_size) {
     Vec vec = {item_size, 0, capacity, calloc(capacity, item_size)};
@@ -18,6 +46,7 @@ void Vec_drop(Vec* self) {
     self->length = 0;
 }
 
+/* Accessors */
 
 size_t Vec_length(const Vec* self) { return self->length; }
 
@@ -30,67 +59,81 @@ void* Vec_ref(const Vec* self, size_t index) {
     }
 }
 
+/* Operations */
 
 void Vec_get(const Vec* self, size_t index, void* out) {
-    void* ptr = Vec_ref(self, index);
-    memcpy(out, ptr, self->item_size);
-}
-
-void Vec_splice(Vec* self, size_t index, size_t delete_count, const void* items,
-                size_t insert_count) {
-    if (index + delete_count > self->length) {
+    if (index >= self->length) {
         fprintf(stderr, "%s:%d - Out of Bounds", __FILE__, __LINE__);
         exit(EXIT_FAILURE);
     }
 
-    size_t new_length = self->length - delete_count + insert_count;
-
-    if (new_length > self->capacity) {
-        size_t new_capacity = self->capacity == 0 ? 1 : self->capacity * 2;
-        while (new_capacity < new_length) {
-            new_capacity *= 2;
-        }
-        self->buffer = realloc(self->buffer, new_capacity * self->item_size);
-        OOM_GUARD(self->buffer, __FILE__, __LINE__);
-        self->capacity = new_capacity;
-    }
-
-    char* dest = (char*)self->buffer + (index + insert_count) * self->item_size;
-
-    char* src = (char*)self->buffer + (index + delete_count) * self->item_size;
-
-    size_t bytes_to_move = (self->length - (index + delete_count)) * self->item_size;
-
-    if (bytes_to_move > 0) {
-        memmove(dest, src, bytes_to_move);
-    }
-
-
-    if (insert_count > 0 && items != NULL) {
-        char* insert_pos = (char*)self->buffer + (index * self->item_size);
-        memcpy(insert_pos, items, insert_count * self->item_size);
-    }
-
-    self->length = new_length;
+    memcpy(out,
+           (char*)self->buffer + index * self->item_size,
+           self->item_size);
 }
 
-void Vec_set(Vec* self, size_t index, const void* value) {    
+void Vec_set(Vec* self, size_t index, const void* value) {
+    if (index > self->length) {
+        fprintf(stderr, "%s:%d - Out of Bounds", __FILE__, __LINE__);
+        exit(EXIT_FAILURE);
+    }
+
     if (index == self->length) {
-        Vec_splice(self, index, 0, value, 1);
-    } else if (index < self->length) {
-        Vec_splice(self, index, 1, value, 1);
-    } else {
-        fprintf(stderr, "%s:%d - Out of Bounds", __FILE__, __LINE__);
-        exit(EXIT_FAILURE);
+        Vec_ensure_capacity(self, self->length + 1);
+        self->length += 1;
     }
+
+    memcpy((char*)self->buffer + index * self->item_size,
+           value,
+           self->item_size);
 }
 
 bool Vec_equals(const Vec* self, const Vec* other) {
-    if (self->length != other->length) {
-        return false;
-    }
     if (self->item_size != other->item_size) {
         return false;
     }
-    return memcmp(self->buffer, other->buffer, self->length * self->item_size) == 0;
+    if (self->length != other->length) {
+        return false;
+    }
+    if (self->length == 0) {
+        return true;
+    }
+
+    return memcmp(self->buffer,
+                  other->buffer,
+                  self->length * self->item_size) == 0;
+}
+
+void Vec_splice(Vec* self, size_t index, size_t delete_count, const void* items, size_t insert_count) {
+    if (index > self->length || index + delete_count > self->length) {
+        fprintf(stderr, "%s:%d - Out of Bounds", __FILE__, __LINE__);
+        exit(EXIT_FAILURE);
+    }
+
+    size_t old_length = self->length;
+    size_t new_length = old_length - delete_count + insert_count;
+
+    Vec_ensure_capacity(self, new_length);
+
+    size_t elem_size = self->item_size;
+    char* buffer = (char*)self->buffer;
+    size_t tail_count = old_length - (index + delete_count);
+
+    if (tail_count > 0 && (delete_count != insert_count)) {
+        memmove(
+            buffer + (index + insert_count) * elem_size,
+            buffer + (index + delete_count) * elem_size,
+            tail_count * elem_size
+        );
+    }
+
+    if (insert_count > 0 && items != NULL) {
+        memcpy(
+            buffer + index * elem_size,
+            items,
+            insert_count * elem_size
+        );
+    }
+
+    self->length = new_length;
 }
