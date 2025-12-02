@@ -8,12 +8,7 @@ static char NULL_CHAR = '\0';
 
 Str Str_value(size_t capacity) {
     Str s = Vec_value(capacity + 1, sizeof(char));
-    // TODO: Replace the below lines with a call below to Vec_set
-    // once you have Vec_set correctly implemented
-    s.length = 1;
-    char* buffer = (char*)s.buffer;
-    buffer[0] = NULL_CHAR;
-    // Vec_set(&s, 0, &NULL_CHAR);
+    Vec_set(&s, 0, &NULL_CHAR);
     return s;
 }
 
